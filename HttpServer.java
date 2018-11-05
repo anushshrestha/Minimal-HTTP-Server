@@ -12,6 +12,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 // @author Anush Shrestha
+// @TODO multi thread, no access above root folder public_html, test get and head  
 
 class HttpServer {
   public static void main(String[] args) throws InterruptedException {
@@ -47,13 +48,13 @@ class MultiThreadedServer {
     Socket client = null;
 
     System.out.println("Waiting client.");
-    // while (true) {
-    client = serverSocket.accept();
-    System.out.println("Client IP : " + client.getInetAddress().getCanonicalHostName() + " connected.");
+    while (true) {
+      client = serverSocket.accept();
+      System.out.println("Client IP : " + client.getInetAddress().getCanonicalHostName() + " connected.");
 
-    Thread thread = new Thread(new SocketClientHandler(client));
-    thread.start();
-    // }
+      Thread thread = new Thread(new SocketClientHandler(client));
+      thread.start();
+    }
   }
 
 }
@@ -80,6 +81,7 @@ class SocketClientHandler implements Runnable {
 
   private void readRequest() throws IOException, InterruptedException {
     try {
+
       BufferedReader request = new BufferedReader(new InputStreamReader(client.getInputStream()));
       BufferedWriter response = new BufferedWriter(new OutputStreamWriter(client.getOutputStream()));
       String requestHeader = "";
@@ -87,21 +89,34 @@ class SocketClientHandler implements Runnable {
 
       while (!temp.equals("")) {
         temp = request.readLine();
-        System.out.println(temp);
+        System.out.println("Request : " + temp);
         requestHeader += temp + "\n";
       }
 
       // get method
       StringBuilder sb = new StringBuilder();
-      // System.out.println(requestHeader.split("\n")[0].split(" ")[1].split("/")[1]);
-      String file = requestHeader.split("\n")[0].split(" ")[1].split("/")[1];
+      if (requestHeader.split("\n")[0].split(" ")[1].toString().equals("/")) {
+        System.out.println("Invalid Invocation. Please mention requested file.");
+        System.exit(-1);
+      }
 
-      if (requestHeader.split("\n")[0].contains("HEAD") && checkURL(file)) {
+      String file = requestHeader.split("\n")[0].split(" ")[1].split("/")[1];
+      String filePath = System.getProperty("user.dir") + "\\public_html\\";
+      filePath = filePath + file;
+      System.out.println("Requested file : " + filePath);
+
+      if (!checkURL(filePath)) {
+        System.out.println("Requested file : " + filePath + " doesn't exist. ");
+        System.exit(-1);
+      }
+
+      if (requestHeader.split("\n")[0].contains("HEAD")) {
         buildResponseHeader(200, sb);
+        System.out.println("Response : " + sb.toString());
         response.write(sb.toString());
         sb.setLength(0);
         response.flush();
-      } else if (requestHeader.split("\n")[0].contains("GET") && checkURL(file)) {
+      } else if (requestHeader.split("\n")[0].contains("GET")) {
         buildResponseHeader(200, sb);
         response.write(sb.toString());
         System.out.println("Response : " + sb.toString());
@@ -120,6 +135,7 @@ class SocketClientHandler implements Runnable {
 
       request.close();
       response.close();
+      // thread.close();
       client.close();
       return;
 
@@ -129,7 +145,7 @@ class SocketClientHandler implements Runnable {
   }
 
   private boolean checkURL(String file) {
-    File myFile = new File("public_html/" + file);
+    File myFile = new File(file);
     return myFile.exists() && !myFile.isDirectory();
   }
 
@@ -164,15 +180,15 @@ class SocketClientHandler implements Runnable {
     BufferedReader reader;
 
     try {
-      File myFile = new File(System.getProperty("user.dir") + "/public_html/" + file);
+      File myFile = new File(System.getProperty("user.dir") + "\\public_html\\" + file);
       // System.out.println(myFile.getCanonicalPath());
       reader = new BufferedReader(new FileReader(myFile));
       String line = null;
-      while (!(line = reader.readLine()).contains("</html>")) {
+      while ((line = reader.readLine()) != null) {
         responseToClient += line;
       }
-      responseToClient += line;
-      System.out.println(responseToClient);
+      // responseToClient += line;
+      // System.out.println("Response data : " + responseToClient);
       reader.close();
 
     } catch (Exception e) {
